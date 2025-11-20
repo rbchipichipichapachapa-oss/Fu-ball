@@ -4,7 +4,8 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // no external assets; create simple textures in create()
+    // load external keeper image
+    this.load.image('torwart', 'Torwart.png');
   }
 
   create() {

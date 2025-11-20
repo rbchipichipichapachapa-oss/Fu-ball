@@ -14,16 +14,11 @@ export default class GameScene extends Phaser.Scene {
     this.goalY = 120;
     this.goal = this.add.rectangle(W/2, this.goalY, 520, 120, 0xffffff, 0.08).setStrokeStyle(4, 0xffffff);
 
-    // Create textures for ball and keeper using graphics
+    // Create texture for ball using graphics
     const g = this.add.graphics();
     g.fillStyle(0xffffff, 1);
     g.fillCircle(16, 16, 16);
     g.generateTexture('ballTex', 32, 32);
-    g.clear();
-
-    g.fillStyle(0x222222, 1);
-    g.fillRect(0,0,80,80);
-    g.generateTexture('keeperTex', 80,80);
     g.destroy();
 
     // Ball start position
@@ -36,7 +31,10 @@ export default class GameScene extends Phaser.Scene {
     this.ball.setDepth(2);
 
     // Goalkeeper
-    this.keeper = this.physics.add.image(W/2, this.goalY + 20, 'keeperTex');
+    // use loaded image asset for keeper
+    this.keeper = this.physics.add.image(W/2, this.goalY + 20, 'torwart');
+    // ensure consistent size to previous generated texture
+    this.keeper.setDisplaySize(80, 80);
     this.keeper.setImmovable(true);
     this.keeper.body.setAllowGravity(false);
     this.keeper.setDepth(2);
