@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Elfmeter-Spiel (Phaser)</title>
+  <style>
+    html,body, #game { height:100%; margin:0; }
+    body { background:#1b2430; color:#fff; font-family: Arial, Helvetica, sans-serif; }
+    #meta { position: absolute; z-index: 10; left:12px; top:12px; }
+    .btn { background:#fff; color:#111; padding:6px 10px; border-radius:4px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div id="meta"></div>
+  <div id="game"></div>
+
+  <!-- Phaser (global) -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
