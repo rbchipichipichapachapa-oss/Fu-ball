@@ -17,7 +17,10 @@ export default class GameScene extends Phaser.Scene {
 
     // Goal area (top)
     this.goalY = 120;
-    this.goal = this.add.rectangle(W/2, this.goalY, 520, 120, 0xffffff, 0.08).setStrokeStyle(4, 0xffffff);
+    this.goalWidth = 520;
+    this.goalHeight = 180;
+    // create a nicer goal (posts, crossbar, net)
+    this.createGoal(W);
 
     // Create texture for ball using graphics
     const g = this.add.graphics();
@@ -88,6 +91,49 @@ export default class GameScene extends Phaser.Scene {
   onPointerMove(pointer) {
     this.pointer = pointer;
     if (!this.shotInProgress) this.drawAim();
+  }
+
+  createGoal(W) {
+    const gx = W / 2;
+    const gy = this.goalY;
+    const gw = this.goalWidth;
+    const gh = this.goalHeight;
+
+    const g = this.add.graphics();
+
+    // draw posts and crossbar (solid white)
+    const postW = 12;
+    g.fillStyle(0xffffff, 1);
+    // left post
+    g.fillRect(gx - gw / 2 - postW / 2, gy - gh / 2, postW, gh + 6);
+    // right post
+    g.fillRect(gx + gw / 2 - postW / 2, gy - gh / 2, postW, gh + 6);
+    // crossbar
+    g.fillRect(gx - gw / 2, gy - gh / 2 - postW / 2, gw, postW);
+
+    // draw net as a loose grid of diagonal lines
+    g.lineStyle(1, 0xffffff, 0.18);
+    const netRows = 8;
+    const netCols = Math.ceil(gw / 16);
+    for (let i = 0; i <= netCols; i++) {
+      const x = gx - gw / 2 + (i / netCols) * gw;
+      // diagonal down-right lines
+      g.beginPath();
+      g.moveTo(x, gy - gh / 2);
+      g.lineTo(x + 40, gy + gh / 2 + 10);
+      g.strokePath();
+      // diagonal down-left lines for mesh
+      g.beginPath();
+      g.moveTo(x, gy - gh / 2);
+      g.lineTo(x - 40, gy + gh / 2 + 10);
+      g.strokePath();
+    }
+
+    // subtle inner rim highlight
+    g.lineStyle(2, 0xffffff, 0.25);
+    g.strokeRoundedRect(gx - gw / 2, gy - gh / 2, gw, gh, 6);
+
+    g.setDepth(1);
   }
 
   onPointerDown() {
