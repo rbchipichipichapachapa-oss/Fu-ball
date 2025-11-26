@@ -345,42 +345,90 @@ export default class GameScene extends Phaser.Scene {
   }
 
   playCelebrationSound() {
-    // Generate upward sweep celebration sound dynamically using Web Audio API
+    // Generate realistic human celebration sounds
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const sampleRate = audioCtx.sampleRate;
-    const duration = 1.5; // seconds
+    const duration = 2.5; // seconds
     const numSamples = sampleRate * duration;
     const audioBuffer = audioCtx.createBuffer(1, numSamples, sampleRate);
     const data = audioBuffer.getChannelData(0);
 
-    // Generate upward frequency sweep with harmonics
-    const freqStart = 200, freqEnd = 800;
     for (let i = 0; i < numSamples; i++) {
       const t = i / sampleRate;
       const progress = t / duration;
-      const freq = freqStart + (freqEnd - freqStart) * progress;
-      const phase = 2 * Math.PI * freq * t;
+      let sample = 0;
 
-      // Main sweep + harmonics
-      let sample = 0.3 * Math.sin(phase);
-      sample += 0.15 * Math.sin(2 * phase);
-      sample += 0.1 * Math.sin(3 * phase);
+      // Phase 1: Initial cheer shout (0-0.8s) - deeper, more vocal
+      if (progress < 0.32) {
+        const localT = progress / 0.32;
+        
+        // Base frequency: human voice range (100-250 Hz for male cheer)
+        const baseFreq = 120 + 100 * Math.sin(2 * Math.PI * localT * 2); // slight variation
+        const phase = 2 * Math.PI * baseFreq * t;
 
-      // Add pulsing envelope (cheer-like rhythm)
-      const pulseEnvelope = 0.5 + 0.5 * Math.sin(2 * Math.PI * 3 * t);
-      sample *= pulseEnvelope;
+        // Add vocal formants for human-like quality
+        const formant1 = 0.35 * Math.sin(phase); // fundamental
+        const formant2 = 0.25 * Math.sin(phase * 1.5 + 0.3); // first formant
+        const formant3 = 0.15 * Math.sin(phase * 2.5 + 0.6); // second formant
+        
+        sample = formant1 + formant2 + formant3;
 
-      // Fade in and out
-      if (t < 0.1) sample *= t / 0.1;
-      else if (t > duration - 0.2) sample *= (duration - t) / 0.2;
+        // Attack and sustain envelope
+        sample *= Math.min(1, localT / 0.08);
+        
+        // Add slight noise for roughness (like human voice)
+        sample += 0.1 * (Math.random() * 2 - 1);
+      }
+      // Phase 2: Sustained crowd cheer (0.8-1.8s) - warmer tones
+      else if (progress < 0.72) {
+        const localT = (progress - 0.32) / 0.4;
+        
+        // Deeper sustained cheer
+        const baseFreq = 140 + 60 * Math.sin(2 * Math.PI * 1.2 * t); // natural variation
+        const phase = 2 * Math.PI * baseFreq * t;
 
-      data[i] = sample;
+        sample = 0.3 * Math.sin(phase);
+        sample += 0.22 * Math.sin(phase * 1.3 + 0.4); // formant
+        sample += 0.12 * Math.sin(phase * 2.0 + 0.8);
+
+        // Organic up-and-down envelope (human breathing/pulsing)
+        const organicPulse = 0.5 + 0.5 * Math.sin(2 * Math.PI * 2.3 * t);
+        sample *= organicPulse;
+
+        // Add voice roughness
+        sample += 0.08 * (Math.random() * 2 - 1);
+      }
+      // Phase 3: Final shout with fading (1.8-2.5s)
+      else {
+        const localT = (progress - 0.72) / 0.28;
+        
+        // Pitch rises slightly at the end (natural cheer ending)
+        const endFreq = 150 + 80 * (1 - localT);
+        const phase = 2 * Math.PI * endFreq * t;
+
+        sample = 0.32 * Math.sin(phase);
+        sample += 0.24 * Math.sin(phase * 1.4);
+        sample += 0.14 * Math.sin(phase * 2.2);
+
+        // Fade out naturally
+        const fadeOut = (1 - localT) * 0.9;
+        sample *= fadeOut;
+
+        // Reduce noise at end
+        sample += 0.05 * (Math.random() * 2 - 1) * fadeOut;
+      }
+
+      // Normalize and prevent clipping
+      data[i] = Math.max(-1, Math.min(1, sample * 0.7));
     }
 
-    // Play the generated sound
+    // Play with controlled gain
     const source = audioCtx.createBufferSource();
     source.buffer = audioBuffer;
-    source.connect(audioCtx.destination);
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.value = 0.9;
+    source.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
     source.start(0);
   }
 
