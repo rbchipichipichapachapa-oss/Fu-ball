@@ -7,7 +7,12 @@ export default class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
-    // Field bg
+    // add background image (scaled to fit)
+    const bg = this.add.image(W/2, H/2, 'background');
+    bg.setDisplaySize(W, H);
+    bg.setDepth(0);
+
+    // Field bg (camera fallback color)
     this.cameras.main.setBackgroundColor(0x2b7a3a);
 
     // Goal area (top)
