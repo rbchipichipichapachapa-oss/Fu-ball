@@ -46,12 +46,18 @@ export default class GameScene extends Phaser.Scene {
     this.keeper.setImmovable(true);
     this.keeper.body.setAllowGravity(false);
     this.keeper.setDepth(2);
-    // increase effective save area to make saves more likely
+    // keeper difficulty / skill (0.0 = very poor, 1.0 = near perfect)
+    this.keeperSkill = 0.6; // reduce from perfect so keeper misses sometimes
+    // set physics body size based on skill (smaller skill -> smaller effective reach)
     if (this.keeper.body && this.keeper.body.setSize) {
-      // make physics body wider than sprite to increase save chance
-      this.keeper.body.setSize(120, 80);
+      const bodyWidth = Math.round(80 + (this.keeperSkill - 0.5) * 40); // around 80 +/-20
+      this.keeper.body.setSize(bodyWidth, 80);
+      this.keeperSaveHalfWidth = Math.round(bodyWidth / 2);
+    } else {
+      this.keeperSaveHalfWidth = 40;
     }
-    this.keeperSaveHalfWidth = 60; // used for goal-line save check
+    // last aim miss flag (set by aimKeeperToIntercept)
+    this.lastKeeperAimMiss = false;
 
     // Invisible line representing goal line (y coordinate)
     this.goalLineY = this.goalY + 40;
@@ -207,14 +213,22 @@ export default class GameScene extends Phaser.Scene {
     const predictedX = this.ball.x + vx * t;
 
     // constrain to goal area (goal width 520 centered at W/2)
-    const goalHalf = 520 / 2;
+    const goalHalf = this.goalWidth / 2;
     const minX = this.scale.width/2 - goalHalf;
     const maxX = this.scale.width/2 + goalHalf;
-    const offset = Phaser.Math.Between(-30, 30);
-    const targetX = Phaser.Math.Clamp(predictedX + offset, minX, maxX);
 
-    // duration slightly shorter than flight time so keeper arrives just before ball
-    const duration = Phaser.Math.Clamp(t * 1000 * 0.9, 120, 700);
+    // skill-based accuracy: higher skill -> smaller error, lower chance to miss
+    const skill = Phaser.Math.Clamp(this.keeperSkill || 0.6, 0, 1);
+    const willMiss = Math.random() > skill; // occasional miss
+    // error range: small when skilled, bigger when missing
+    const errorRange = willMiss ? Phaser.Math.Between(-80, 80) : Phaser.Math.Between(-18, 18);
+    const targetX = Phaser.Math.Clamp(predictedX + errorRange, minX, maxX);
+
+    // duration slightly shorter than flight time so keeper arrives near ball; if miss, arrive later
+    let duration = Phaser.Math.Clamp(t * 1000 * 0.9, 120, 700);
+    if (willMiss) duration = Math.min(900, Math.round(duration * 1.2));
+
+    this.lastKeeperAimMiss = !!willMiss;
     if (this.keeperTween) this.keeperTween.stop();
     this.keeperTween = this.tweens.add({
       targets: this.keeper,
@@ -262,11 +276,22 @@ export default class GameScene extends Phaser.Scene {
       // check if ball crossed goal line
       if (this.ball.y <= this.goalLineY) {
         // ball crossed line; if overlapping keeper, overlap handler already shows 'GEHALTEN!'
-        // check saved by bounding box overlap OR by proximity to keeper x (larger effective area)
+        // check saved by bounding box overlap OR by proximity to keeper x (with probability)
         const rectSaved = Phaser.Geom.Intersects.RectangleToRectangle(this.ball.getBounds(), this.keeper.getBounds());
         const proxSaved = Math.abs(this.ball.x - this.keeper.x) <= (this.keeperSaveHalfWidth || 40);
-        if (rectSaved || proxSaved) {
+        if (rectSaved) {
           this.showResult('GEHALTEN!');
+        } else if (proxSaved) {
+          // probabilistic save when close: depend on keeper skill and whether last aim was a miss
+          const skill = Phaser.Math.Clamp(this.keeperSkill || 0.6, 0, 1);
+          let saveThreshold = 0.6 * skill; // base threshold
+          if (this.lastKeeperAimMiss) saveThreshold *= 0.5; // reduce chance if keeper aimed badly
+          const roll = Math.random();
+          if (roll < saveThreshold) {
+            this.showResult('GEHALTEN!');
+          } else {
+            this.showResult('TOR!');
+          }
         } else {
           this.showResult('TOR!');
         }
