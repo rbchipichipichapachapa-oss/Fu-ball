@@ -38,6 +38,17 @@ export default class GameScene extends Phaser.Scene {
     this.ball.body.setAllowGravity(false);
     this.ball.setDepth(2);
 
+    // Player (shooter) - use ronaldo.png image
+    this.playerStart = { x: W/2, y: H - 60 };
+    this.player = this.physics.add.image(this.playerStart.x, this.playerStart.y, 'ronaldo');
+    this.player.setDisplaySize(60, 80);
+    this.player.setDepth(2);
+    this.player.body.setAllowGravity(false);
+    this.player.setImmovable(true);
+
+    // player is controlled by the user: do not auto-shoot
+    this.playerControlled = true;
+
     // Goalkeeper
     // use loaded image asset for keeper
     this.keeper = this.physics.add.image(W/2, this.goalY + 20, 'torwart');
@@ -151,21 +162,27 @@ export default class GameScene extends Phaser.Scene {
   onPointerUp() {
     if (!this.isCharging || this.shotInProgress) return;
     this.isCharging = false;
-    // shoot
-    const angle = Phaser.Math.Angle.Between(this.ball.x, this.ball.y, this.pointer.x, this.pointer.y);
-    // invert because pointer is above ball
-    const vx = Math.cos(angle) * this.power * -1;
-    const vy = Math.sin(angle) * this.power * -1;
-    this.ball.setVelocity(vx, vy);
-    this.shotInProgress = true;
-    this.resultShown = false;
-    this.shots += 1;
-    this.scoreText.setText(`Tore: ${this.score}  |  Schüsse: ${this.shots}`);
+    // shoot: if player exists (user-controlled), have player kick toward pointer
+    if (this.player) {
+      // pass the pointer target and current power to player's kick routine
+      this.playerApproachAndShootAt(this.pointer.x, this.pointer.y, this.power);
+    } else {
+      // fallback: direct physics shot (no player)
+      const angle = Phaser.Math.Angle.Between(this.ball.x, this.ball.y, this.pointer.x, this.pointer.y);
+      // invert because pointer is above ball
+      const vx = Math.cos(angle) * this.power * -1;
+      const vy = Math.sin(angle) * this.power * -1;
+      this.ball.setVelocity(vx, vy);
+      this.shotInProgress = true;
+      this.resultShown = false;
+      this.shots += 1;
+      this.scoreText.setText(`Tore: ${this.score}  |  Schüsse: ${this.shots}`);
 
-    // Keeper reaction: choose random dive and animate
-    this.animateKeeper();
-    // aim keeper to predicted intercept point to increase save probability
-    this.aimKeeperToIntercept(vx, vy);
+      // Keeper reaction: choose random dive and animate
+      this.animateKeeper();
+      // aim keeper to predicted intercept point to increase save probability
+      this.aimKeeperToIntercept(vx, vy);
+    }
   }
 
   drawAim() {
@@ -238,6 +255,64 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  // PLAYER AI: approach the ball and shoot towards the goal
+  playerApproachAndShoot() {
+    // legacy: used for AI automatic shooting; keep for compatibility but do nothing when playerControlled
+    if (this.playerControlled) return;
+    if (this.shotInProgress) return;
+    // move player to a position slightly behind/left of the ball
+    const targetX = this.ball.x - 40;
+    const targetY = this.ball.y;
+    if (this.playerTween) this.playerTween.stop();
+    this.playerTween = this.tweens.add({
+      targets: this.player,
+      x: targetX,
+      y: targetY,
+      duration: 300,
+      ease: 'Sine.easeInOut',
+      onComplete: () => this.doPlayerKick()
+    });
+  }
+
+  // player kicks toward a specific target (x,y) — used when the user aims and releases
+  playerApproachAndShootAt(targetX, targetY, powerOverride) {
+    if (this.shotInProgress) return;
+    // move player to ball first
+    const px = this.ball.x - 24; // slightly behind ball
+    const py = this.ball.y;
+    if (this.playerTween) this.playerTween.stop();
+    this.playerTween = this.tweens.add({
+      targets: this.player,
+      x: px,
+      y: py,
+      duration: 220,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        // small delay to look natural
+        this.time.delayedCall(80, () => {
+          // place ball near player's front
+          this.ball.setPosition(this.player.x + 18, this.player.y);
+          // compute velocity towards the aimed point using provided power or current charge
+          const angle = Phaser.Math.Angle.Between(this.ball.x, this.ball.y, targetX, targetY);
+          const power = powerOverride || this.power || 520;
+          // invert logic similar to manual shot handling if needed
+          const vx = Math.cos(angle) * power * -1;
+          const vy = Math.sin(angle) * power * -1;
+
+          this.ball.setVelocity(vx, vy);
+          this.shotInProgress = true;
+          this.resultShown = false;
+          this.shots += 1;
+          this.scoreText.setText(`Tore: ${this.score}  |  Schüsse: ${this.shots}`);
+
+          // animate keeper reaction and predictive aim
+          this.animateKeeper();
+          this.aimKeeperToIntercept(vx, vy);
+        });
+      }
+    });
+  }
+
   resetShot() {
     this.shotInProgress = false;
     this.resultShown = false;
@@ -245,6 +320,11 @@ export default class GameScene extends Phaser.Scene {
     this.ball.setVelocity(0,0);
     // place keeper center
     this.keeper.setPosition(this.scale.width/2, this.goalY + 20);
+    // reset player position
+    if (this.player) {
+      if (this.playerTween) this.playerTween.stop();
+      this.player.setPosition(this.playerStart.x, this.playerStart.y);
+    }
     this.aimLine.clear();
     this.msgText.setText('Klicke & halte zum Power aufladen, loslassen um zu schießen');
   }

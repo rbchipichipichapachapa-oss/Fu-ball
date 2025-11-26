@@ -4,8 +4,9 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // load external keeper image and background
+    // load external keeper image, player, and background
     this.load.image('torwart', 'Torwart.png');
+    this.load.image('ronaldo', 'ronaldo.png');
     this.load.image('background', '1137.jpg');
   }
 
