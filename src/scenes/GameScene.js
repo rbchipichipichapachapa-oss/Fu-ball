@@ -43,6 +43,12 @@ export default class GameScene extends Phaser.Scene {
     this.keeper.setImmovable(true);
     this.keeper.body.setAllowGravity(false);
     this.keeper.setDepth(2);
+    // increase effective save area to make saves more likely
+    if (this.keeper.body && this.keeper.body.setSize) {
+      // make physics body wider than sprite to increase save chance
+      this.keeper.body.setSize(120, 80);
+    }
+    this.keeperSaveHalfWidth = 60; // used for goal-line save check
 
     // Invisible line representing goal line (y coordinate)
     this.goalLineY = this.goalY + 40;
@@ -106,6 +112,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Keeper reaction: choose random dive and animate
     this.animateKeeper();
+    // aim keeper to predicted intercept point to increase save probability
+    this.aimKeeperToIntercept(vx, vy);
   }
 
   drawAim() {
@@ -138,6 +146,34 @@ export default class GameScene extends Phaser.Scene {
       targets: this.keeper,
       x: tgtX,
       duration: 400,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  aimKeeperToIntercept(vx, vy) {
+    // Predict time when the ball will reach the goal line and move keeper there.
+    if (!vx || !vy) return;
+    // time in seconds until crossing (vy is negative when going up)
+    const t = (this.goalLineY - this.ball.y) / vy;
+    if (!isFinite(t) || t <= 0) return;
+
+    // predicted x position at that time
+    const predictedX = this.ball.x + vx * t;
+
+    // constrain to goal area (goal width 520 centered at W/2)
+    const goalHalf = 520 / 2;
+    const minX = this.scale.width/2 - goalHalf;
+    const maxX = this.scale.width/2 + goalHalf;
+    const offset = Phaser.Math.Between(-30, 30);
+    const targetX = Phaser.Math.Clamp(predictedX + offset, minX, maxX);
+
+    // duration slightly shorter than flight time so keeper arrives just before ball
+    const duration = Phaser.Math.Clamp(t * 1000 * 0.9, 120, 700);
+    if (this.keeperTween) this.keeperTween.stop();
+    this.keeperTween = this.tweens.add({
+      targets: this.keeper,
+      x: targetX,
+      duration,
       ease: 'Sine.easeInOut'
     });
   }
@@ -180,9 +216,10 @@ export default class GameScene extends Phaser.Scene {
       // check if ball crossed goal line
       if (this.ball.y <= this.goalLineY) {
         // ball crossed line; if overlapping keeper, overlap handler already shows 'GEHALTEN!'
-        // check saved by bounding box overlap
-        const saved = Phaser.Geom.Intersects.RectangleToRectangle(this.ball.getBounds(), this.keeper.getBounds());
-        if (saved) {
+        // check saved by bounding box overlap OR by proximity to keeper x (larger effective area)
+        const rectSaved = Phaser.Geom.Intersects.RectangleToRectangle(this.ball.getBounds(), this.keeper.getBounds());
+        const proxSaved = Math.abs(this.ball.x - this.keeper.x) <= (this.keeperSaveHalfWidth || 40);
+        if (rectSaved || proxSaved) {
           this.showResult('GEHALTEN!');
         } else {
           this.showResult('TOR!');
