@@ -332,6 +332,8 @@ export default class GameScene extends Phaser.Scene {
   showResult(text) {
     if (text === 'TOR!') {
       this.score += 1;
+      // generate and play celebration sound dynamically
+      this.playCelebrationSound();
     }
     this.msgText.setText(text + '  (Klicke zum erneut versuchen)');
     this.scoreText.setText(`Tore: ${this.score}  |  Schüsse: ${this.shots}`);
@@ -340,6 +342,46 @@ export default class GameScene extends Phaser.Scene {
     this.input.once('pointerdown', () => {
       this.resetShot();
     });
+  }
+
+  playCelebrationSound() {
+    // Generate upward sweep celebration sound dynamically using Web Audio API
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const sampleRate = audioCtx.sampleRate;
+    const duration = 1.5; // seconds
+    const numSamples = sampleRate * duration;
+    const audioBuffer = audioCtx.createBuffer(1, numSamples, sampleRate);
+    const data = audioBuffer.getChannelData(0);
+
+    // Generate upward frequency sweep with harmonics
+    const freqStart = 200, freqEnd = 800;
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const progress = t / duration;
+      const freq = freqStart + (freqEnd - freqStart) * progress;
+      const phase = 2 * Math.PI * freq * t;
+
+      // Main sweep + harmonics
+      let sample = 0.3 * Math.sin(phase);
+      sample += 0.15 * Math.sin(2 * phase);
+      sample += 0.1 * Math.sin(3 * phase);
+
+      // Add pulsing envelope (cheer-like rhythm)
+      const pulseEnvelope = 0.5 + 0.5 * Math.sin(2 * Math.PI * 3 * t);
+      sample *= pulseEnvelope;
+
+      // Fade in and out
+      if (t < 0.1) sample *= t / 0.1;
+      else if (t > duration - 0.2) sample *= (duration - t) / 0.2;
+
+      data[i] = sample;
+    }
+
+    // Play the generated sound
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioCtx.destination);
+    source.start(0);
   }
 
   update(time, delta) {
